@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShieldCheck,
@@ -9,7 +9,10 @@ import {
   BarChart3,
   ListTodo,
   Radio,
+  Play,
+  Square,
 } from 'lucide-react';
+import { useLiveStore } from '@/store/useLiveStore';
 
 const navItems = [
   { path: '/', label: '总览', icon: LayoutDashboard },
@@ -23,6 +26,18 @@ const navItems = [
 ];
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+  const { isLiveOngoing, startLive, endLive } = useLiveStore();
+
+  const handleStartLive = () => {
+    if (!isLiveOngoing) {
+      startLive();
+    } else {
+      endLive();
+    }
+    navigate('/control');
+  };
+
   return (
     <aside className="w-60 h-screen bg-slate-850 border-r border-slate-700/50 flex flex-col fixed left-0 top-0">
       <div className="h-16 flex items-center px-5 border-b border-slate-700/50">
@@ -64,9 +79,28 @@ const Sidebar = () => {
         <div className="mt-6 pt-4 border-t border-slate-700/50">
           <p className="px-3 text-xs text-slate-500 mb-2">快捷操作</p>
           <div className="space-y-1">
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-700/40 transition-colors">
-              <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
-              <span>开始直播</span>
+            <button
+              onClick={handleStartLive}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                isLiveOngoing
+                  ? 'bg-danger/20 text-danger hover:bg-danger/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/40'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${isLiveOngoing ? 'bg-danger animate-pulse' : 'bg-success'}`}></span>
+              <span className="flex items-center gap-2 font-medium">
+                {isLiveOngoing ? (
+                  <>
+                    <Square className="w-3.5 h-3.5" fill="currentColor" />
+                    结束直播
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5" fill="currentColor" />
+                    开始直播
+                  </>
+                )}
+              </span>
             </button>
           </div>
         </div>

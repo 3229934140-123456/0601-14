@@ -18,12 +18,15 @@ import {
   LayoutTemplate,
   ChevronRight,
   Filter,
+  MessageSquare,
+  Tag,
+  TrendingUp,
 } from 'lucide-react';
 import Card from '@/components/Card/Card';
 import { useLiveStore } from '@/store/useLiveStore';
 import { formatCurrency, formatNumber, formatDateTime } from '@/utils/format';
 import { cn } from '@/lib/utils';
-import type { LiveStatus, Priority } from '@/types';
+import type { LiveStatus, Priority, Task } from '@/types';
 
 type TabType = 'sessions' | 'templates' | 'tasks';
 type TaskCategory = 'all' | '开播前' | '直播中' | '直播后';
@@ -62,14 +65,20 @@ const Tasks = () => {
     applyTemplate,
     deleteTemplate,
     deleteSession,
-    loadSession,
+    switchSession,
     toggleTask,
+    addTask,
   } = useLiveStore();
 
-  const [activeTab, setActiveTab] = useState<TabType>('sessions');
+  const [activeTab, setActiveTab] = useState<TabType>('tasks');
   const [taskCategory, setTaskCategory] = useState<TaskCategory>('all');
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [newTaskCategory, setNewTaskCategory] = useState<string>('直播中');
+  const [newTaskPriority, setNewTaskPriority] = useState<Priority>('medium');
   const [confirmAction, setConfirmAction] = useState<{
     type: 'applyTemplate' | 'deleteTemplate' | 'deleteSession';
     id: string;
@@ -77,9 +86,9 @@ const Tasks = () => {
   } | null>(null);
 
   const tabs = [
+    { key: 'tasks' as TabType, label: '任务追踪', icon: CheckSquare },
     { key: 'sessions' as TabType, label: '场次管理', icon: Calendar },
     { key: 'templates' as TabType, label: '模板管理', icon: Layers },
-    { key: 'tasks' as TabType, label: '任务追踪', icon: CheckSquare },
   ];
 
   const taskCategories: { key: TaskCategory; label: string }[] = [
@@ -100,13 +109,17 @@ const Tasks = () => {
   const totalCount = filteredTasks.length;
   const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+  const danmakuSourceTasks = useMemo(() => {
+    return tasks.filter(t => t.sourceDanmakuId);
+  }, [tasks]);
+
   const handleExportCSV = () => {
     const pendingTasks = tasks.filter((t) => !t.isCompleted);
-    const header = '任务标题,描述,优先级,分类,状态\n';
+    const header = '任务标题,描述,优先级,分类,状态,来源\n';
     const rows = pendingTasks
       .map(
         (t) =>
-          `${t.title},${t.description},${priorityLabels[t.priority]},${t.category},待完成`
+          `${t.title},${t.description},${priorityLabels[t.priority]},${t.category},待完成,${t.sourceDanmakuContent ? '弹幕' : '手动'}`
       )
       .join('\n');
     const csvContent = header + rows;
@@ -127,6 +140,22 @@ const Tasks = () => {
     saveAsTemplate(templateName.trim());
     setTemplateName('');
     setShowSaveTemplateModal(false);
+  };
+
+  const handleAddTask = () => {
+    if (!newTaskTitle.trim()) return;
+    addTask({
+      title: newTaskTitle.trim(),
+      description: newTaskDesc.trim(),
+      category: newTaskCategory,
+      priority: newTaskPriority,
+      isCompleted: false,
+    });
+    setNewTaskTitle('');
+    setNewTaskDesc('');
+    setNewTaskCategory('直播中');
+    setNewTaskPriority('medium');
+    setShowAddTaskModal(false);
   };
 
   const handleConfirmAction = () => {
@@ -183,7 +212,7 @@ const Tasks = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-100">任务日志</h1>
@@ -193,13 +222,22 @@ const Tasks = () => {
         </div>
         <div className="flex items-center gap-3">
           {activeTab === 'tasks' && (
-            <button
-              onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 py-2.5 bg-slate-700/50 text-slate-200 rounded-lg text-sm font-medium transition-all hover:bg-slate-700"
-            >
-              <Download className="w-4 h-4" />
-              导出清单
-            </button>
+            <>
+              <button
+                onClick={() => setShowAddTaskModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-medium transition-all hover:bg-primary/90 shadow-glow hover:shadow-glow-hover"
+              >
+                <Plus className="w-4 h-4" />
+                新建任务
+              </button>
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-700/50 text-slate-200 rounded-lg text-sm font-medium transition-all hover:bg-slate-700"
+              >
+                <Download className="w-4 h-4" />
+                导出清单
+              </button>
+            </>
           )}
           {activeTab === 'templates' && (
             <button
@@ -213,8 +251,8 @@ const Tasks = () => {
         </div>
       </div>
 
-      <Card>
-        <div className="flex border-b border-slate-700/50">
+      <Card className="flex-1 flex flex-col min-h-0">
+        <div className="flex border-b border-slate-700/50 px-5">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.key;
@@ -223,7 +261,7 @@ const Tasks = () => {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={cn(
-                  'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all border-b-2 -mb-px',
+                  'flex items-center gap-2 px-5 py-4 text-sm font-medium transition-all border-b-2 -mb-px',
                   isActive
                     ? 'text-primary border-primary'
                     : 'text-slate-400 border-transparent hover:text-slate-200'
@@ -236,7 +274,7 @@ const Tasks = () => {
           })}
         </div>
 
-        <div className="p-5">
+        <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'sessions' && (
             <div>
               {sessions.length === 0 ? (
@@ -255,7 +293,7 @@ const Tasks = () => {
                       <Card.Body>
                         <div
                           className="flex items-start justify-between"
-                          onClick={() => loadSession(session.id)}
+                          onClick={() => switchSession(session.id)}
                         >
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
@@ -283,13 +321,20 @@ const Tasks = () => {
                               <Calendar className="w-3.5 h-3.5" />
                               {formatDateTime(session.startTime)}
                             </div>
+                            {session.category && (
+                              <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
+                                <Tag className="w-3.5 h-3.5" />
+                                {session.category}
+                                {session.owner && ` · ${session.owner}`}
+                              </div>
+                            )}
                           </div>
                           <ChevronRight className="w-5 h-5 text-slate-500 shrink-0 mt-1" />
                         </div>
 
                         <div
-                          className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-700/30"
-                          onClick={() => loadSession(session.id)}
+                          className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-slate-700/30"
+                          onClick={() => switchSession(session.id)}
                         >
                           <div>
                             <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
@@ -307,6 +352,15 @@ const Tasks = () => {
                             </div>
                             <p className="text-sm font-semibold text-success">
                               {formatCurrency(session.transactionAmount)}
+                            </p>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+                              <CheckSquare className="w-3.5 h-3.5" />
+                              任务数
+                            </div>
+                            <p className="text-sm font-semibold text-slate-200">
+                              {session.tasks?.length || 0}
                             </p>
                           </div>
                         </div>
@@ -372,19 +426,19 @@ const Tasks = () => {
                             <p className="text-lg font-bold text-slate-200">
                               {template.products.length}
                             </p>
-                            <p className="text-xs text-slate-400">商品数</p>
+                            <p className="text-xs text-slate-400">商品</p>
                           </div>
                           <div className="text-center">
                             <p className="text-lg font-bold text-slate-200">
                               {template.scriptNodes.length}
                             </p>
-                            <p className="text-xs text-slate-400">脚本节点</p>
+                            <p className="text-xs text-slate-400">脚本</p>
                           </div>
                           <div className="text-center">
                             <p className="text-lg font-bold text-slate-200">
                               {template.tasks.length}
                             </p>
-                            <p className="text-xs text-slate-400">任务数</p>
+                            <p className="text-xs text-slate-400">任务</p>
                           </div>
                         </div>
 
@@ -413,7 +467,38 @@ const Tasks = () => {
           )}
 
           {activeTab === 'tasks' && (
-            <div>
+            <div className="h-full flex flex-col">
+              <div className="grid grid-cols-4 gap-3 mb-5">
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckSquare className="w-4 h-4 text-primary" />
+                    <span className="text-xs text-slate-400">总任务数</span>
+                  </div>
+                  <p className="text-2xl font-bold text-slate-100">{tasks.length}</p>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-success" />
+                    <span className="text-xs text-slate-400">已完成</span>
+                  </div>
+                  <p className="text-2xl font-bold text-success">{completedCount}</p>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-4 h-4 text-warning" />
+                    <span className="text-xs text-slate-400">待完成</span>
+                  </div>
+                  <p className="text-2xl font-bold text-warning">{totalCount - completedCount}</p>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare className="w-4 h-4 text-info" />
+                    <span className="text-xs text-slate-400">弹幕来源</span>
+                  </div>
+                  <p className="text-2xl font-bold text-info">{danmakuSourceTasks.length}</p>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Filter className="w-4 h-4 text-slate-400" />
@@ -440,87 +525,116 @@ const Tasks = () => {
                 </div>
               </div>
 
-              <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden mb-6">
+              <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden mb-5">
                 <div
                   className="h-full bg-gradient-to-r from-primary to-success rounded-full progress-transition"
                   style={{ width: `${completionRate}%` }}
                 />
               </div>
 
-              {filteredTasks.length === 0 ? (
-                <div className="py-16 text-center">
-                  <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                  <p className="text-sm text-slate-500">暂无任务</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filteredTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className={cn(
-                        'flex items-start gap-3 p-4 rounded-lg border transition-all',
-                        task.isCompleted
-                          ? 'bg-slate-800/20 border-slate-700/30'
-                          : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-750/50 hover:border-slate-600/50'
-                      )}
+              <div className="flex-1 overflow-y-auto -mx-5 px-5">
+                {filteredTasks.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">暂无任务</p>
+                    <button
+                      onClick={() => setShowAddTaskModal(true)}
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary-light transition-colors"
                     >
-                      <button
-                        onClick={() => toggleTask(task.id)}
+                      <Plus className="w-3.5 h-3.5" />
+                      添加第一个任务
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2 pb-4">
+                    {filteredTasks.map((task) => (
+                      <div
+                        key={task.id}
                         className={cn(
-                          'mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all',
+                          'flex items-start gap-3 p-4 rounded-xl border transition-all',
                           task.isCompleted
-                            ? 'bg-success border-success'
-                            : 'border-slate-500 hover:border-primary'
+                            ? 'bg-slate-800/20 border-slate-700/30'
+                            : task.priority === 'high'
+                            ? 'bg-danger/5 border-danger/30 hover:bg-danger/10'
+                            : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-750/50 hover:border-slate-600/50'
                         )}
                       >
-                        {task.isCompleted && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        )}
-                      </button>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={cn(
-                              'text-sm font-medium',
-                              task.isCompleted
-                                ? 'text-slate-500 line-through'
-                                : 'text-slate-200'
-                            )}
-                          >
-                            {task.title}
-                          </span>
-                          <span
-                            className={cn(
-                              'px-1.5 py-0.5 text-[10px] font-medium rounded border',
-                              priorityColors[task.priority]
-                            )}
-                          >
-                            {priorityLabels[task.priority]}优先级
-                          </span>
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-700/50 text-slate-400 border border-slate-600/30">
-                            {task.category}
-                          </span>
-                        </div>
-                        <p
+                        <button
+                          onClick={() => toggleTask(task.id)}
                           className={cn(
-                            'text-xs mt-1',
-                            task.isCompleted ? 'text-slate-600' : 'text-slate-400'
+                            'mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                            task.isCompleted
+                              ? 'bg-success border-success'
+                              : 'border-slate-500 hover:border-primary'
                           )}
                         >
-                          {task.description}
-                        </p>
+                          {task.isCompleted && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                          )}
+                        </button>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={cn(
+                                'text-sm font-medium',
+                                task.isCompleted
+                                  ? 'text-slate-500 line-through'
+                                  : 'text-slate-200'
+                              )}
+                            >
+                              {task.title}
+                            </span>
+                            <span
+                              className={cn(
+                                'px-1.5 py-0.5 text-[10px] font-medium rounded border',
+                                priorityColors[task.priority]
+                              )}
+                            >
+                              {priorityLabels[task.priority]}优先级
+                            </span>
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-700/50 text-slate-400 border border-slate-600/30">
+                              {task.category}
+                            </span>
+                            {task.sourceDanmakuId && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-info/15 text-info border border-info/30 flex items-center gap-1">
+                                <MessageSquare className="w-3 h-3" />
+                                弹幕来源
+                              </span>
+                            )}
+                          </div>
+                          <p
+                            className={cn(
+                              'text-xs mt-1.5',
+                              task.isCompleted ? 'text-slate-600' : 'text-slate-400'
+                            )}
+                          >
+                            {task.description}
+                          </p>
+
+                          {task.sourceDanmakuContent && !task.isCompleted && (
+                            <div className="mt-3 p-2.5 bg-slate-700/30 rounded-lg border border-slate-600/20">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <MessageSquare className="w-3 h-3 text-info" />
+                                <span className="text-[10px] text-slate-500 font-medium">来源弹幕</span>
+                              </div>
+                              <p className="text-xs text-slate-400 leading-relaxed">
+                                "{task.sourceDanmakuContent}"
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {task.isCompleted && (
+                          <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
+                        )}
                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-                      {task.isCompleted && (
-                        <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-700/30 text-sm text-slate-400">
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-700/30 text-sm text-slate-400">
                 <span>
                   已完成 <span className="font-semibold text-slate-200">{completedCount}</span> /{' '}
                   {totalCount} 项
@@ -544,6 +658,100 @@ const Tasks = () => {
           )}
         </div>
       </Card>
+
+      {showAddTaskModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowAddTaskModal(false)}
+          />
+          <div className="relative w-full max-w-md bg-slate-850 rounded-xl border border-slate-700/50 shadow-xl animate-fade-in">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
+              <h3 className="text-sm font-semibold text-slate-100">新建任务</h3>
+              <button
+                onClick={() => setShowAddTaskModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-md transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  任务标题 <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  placeholder="请输入任务标题"
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  任务描述
+                </label>
+                <textarea
+                  value={newTaskDesc}
+                  onChange={(e) => setNewTaskDesc(e.target.value)}
+                  placeholder="请输入任务描述（选填）"
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    分类
+                  </label>
+                  <select
+                    value={newTaskCategory}
+                    onChange={(e) => setNewTaskCategory(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                  >
+                    <option value="开播前">开播前</option>
+                    <option value="直播中">直播中</option>
+                    <option value="直播后">直播后</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    优先级
+                  </label>
+                  <select
+                    value={newTaskPriority}
+                    onChange={(e) => setNewTaskPriority(e.target.value as Priority)}
+                    className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                  >
+                    <option value="high">高优先级</option>
+                    <option value="medium">中优先级</option>
+                    <option value="low">低优先级</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-700/50">
+              <button
+                onClick={() => setShowAddTaskModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAddTask}
+                disabled={!newTaskTitle.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                创建任务
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSaveTemplateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

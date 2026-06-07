@@ -7,9 +7,19 @@ export interface LiveSession {
   endTime?: string;
   status: LiveStatus;
   coverImage?: string;
+  category: string;
+  targetAmount: number;
+  owner: string;
   viewerCount: number;
   transactionAmount: number;
   interactionRate: number;
+  stockWarningThreshold: number;
+  products: Product[];
+  scriptNodes: ScriptNode[];
+  tasks: Task[];
+  danmaku: Danmaku[];
+  abnormalEvents: AbnormalEvent[];
+  reviewPoints: ReviewPoint[];
   createdAt: string;
   updatedAt: string;
 }
@@ -28,6 +38,7 @@ export interface Product {
   onShelfTime?: string;
   duration?: number;
   description?: string;
+  lowStock?: boolean;
 }
 
 export type ScriptNodeType = 'opening' | 'product' | 'interaction' | 'promotion' | 'closing';
@@ -39,6 +50,7 @@ export interface ScriptNode {
   type: ScriptNodeType;
   timeOffset: number;
   isCompleted: boolean;
+  isSkipped?: boolean;
   relatedProductId?: string;
 }
 
@@ -51,6 +63,7 @@ export interface Danmaku {
   timestamp: string;
   sentiment: Sentiment;
   category: string;
+  isFollowUp?: boolean;
 }
 
 export type AbnormalType = 'technical' | 'content' | 'emergency';
@@ -73,6 +86,8 @@ export interface Task {
   isCompleted: boolean;
   dueTime?: string;
   category: string;
+  sourceDanmakuId?: string;
+  sourceDanmakuContent?: string;
 }
 
 export interface Template {
@@ -124,3 +139,11 @@ export interface ReviewPoint {
   content: string;
   type: 'good' | 'bad' | 'improvement';
 }
+
+export type DanmakuCategory =
+  | '产品咨询'
+  | '价格咨询'
+  | '物流售后'
+  | '购买反馈'
+  | '互动'
+  | '其他';

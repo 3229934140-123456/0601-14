@@ -1,4 +1,15 @@
-import type { Product, ScriptNode, Task, Danmaku, AbnormalEvent, LiveSession, Template, HighFrequencyQuestion, PeakData, ReviewPoint } from '@/types';
+import type {
+  Product,
+  ScriptNode,
+  Task,
+  Danmaku,
+  AbnormalEvent,
+  LiveSession,
+  Template,
+  HighFrequencyQuestion,
+  PeakData,
+  ReviewPoint,
+} from '@/types';
 import { generateId } from './format';
 
 export const mockProducts: Product[] = [
@@ -190,7 +201,7 @@ export const mockDanmaku: Danmaku[] = [
   { id: 'd4', content: '敏感肌能用吗', user: '痘痘肌少女', timestamp: '2024-01-15T19:06:20', sentiment: 'neutral', category: '产品咨询' },
   { id: 'd5', content: '主播声音好好听', user: '路过的风', timestamp: '2024-01-15T19:07:00', sentiment: 'positive', category: '互动' },
   { id: 'd6', content: '有优惠吗', user: '省钱达人', timestamp: '2024-01-15T19:07:30', sentiment: 'neutral', category: '价格咨询' },
-  { id: 'd7', content: '发货快吗', user: '急着用', timestamp: '2024-01-15T19:08:00', sentiment: 'neutral', category: '物流咨询' },
+  { id: 'd7', content: '发货快吗', user: '急着用', timestamp: '2024-01-15T19:08:00', sentiment: 'neutral', category: '物流售后' },
   { id: 'd8', content: '回购第三次了！', user: '老粉一枚', timestamp: '2024-01-15T19:08:30', sentiment: 'positive', category: '购买反馈' },
   { id: 'd9', content: '这个面霜好用吗', user: '新人小白', timestamp: '2024-01-15T19:09:00', sentiment: 'neutral', category: '产品咨询' },
   { id: 'd10', content: '太贵了吧', user: '学生党', timestamp: '2024-01-15T19:09:30', sentiment: 'negative', category: '价格咨询' },
@@ -218,6 +229,16 @@ export const mockAbnormalEvents: AbnormalEvent[] = [
   },
 ];
 
+export const mockReviewPoints: ReviewPoint[] = [
+  { id: 'rp1', content: '开场节奏把控较好，观众留存率高', type: 'good' },
+  { id: 'rp2', content: '第一款产品讲解时间过长，导致观众流失', type: 'bad' },
+  { id: 'rp3', content: '互动环节参与度高，建议增加互动频次', type: 'good' },
+  { id: 'rp4', content: '限时优惠效果显著，成交峰值明显', type: 'good' },
+  { id: 'rp5', content: '中途画面卡顿，需检查网络和设备', type: 'bad' },
+  { id: 'rp6', content: '福利款秒杀转化好，下次可增加库存', type: 'improvement' },
+  { id: 'rp7', content: '建议优化产品讲解顺序，爆款后置', type: 'improvement' },
+];
+
 export const mockLiveSessions: LiveSession[] = [
   {
     id: 'session-1',
@@ -225,9 +246,19 @@ export const mockLiveSessions: LiveSession[] = [
     startTime: '2024-01-15T19:00:00',
     endTime: '2024-01-15T21:30:00',
     status: 'completed',
+    category: '美妆护肤',
+    targetAmount: 100000,
+    owner: '运营小王',
     viewerCount: 12580,
     transactionAmount: 89600,
     interactionRate: 0.15,
+    stockWarningThreshold: 100,
+    products: mockProducts,
+    scriptNodes: mockScriptNodes,
+    tasks: mockTasks,
+    danmaku: mockDanmaku,
+    abnormalEvents: mockAbnormalEvents,
+    reviewPoints: mockReviewPoints,
     createdAt: '2024-01-15T18:00:00',
     updatedAt: '2024-01-15T21:30:00',
   },
@@ -237,9 +268,19 @@ export const mockLiveSessions: LiveSession[] = [
     startTime: '2024-01-10T20:00:00',
     endTime: '2024-01-10T22:45:00',
     status: 'completed',
+    category: '美妆护肤',
+    targetAmount: 150000,
+    owner: '运营小李',
     viewerCount: 18900,
     transactionAmount: 156800,
     interactionRate: 0.22,
+    stockWarningThreshold: 100,
+    products: mockProducts.slice(0, 4),
+    scriptNodes: mockScriptNodes.slice(0, 5),
+    tasks: mockTasks.slice(0, 4),
+    danmaku: mockDanmaku.slice(0, 8),
+    abnormalEvents: [],
+    reviewPoints: mockReviewPoints.slice(0, 4),
     createdAt: '2024-01-10T19:00:00',
     updatedAt: '2024-01-10T22:45:00',
   },
@@ -249,9 +290,19 @@ export const mockLiveSessions: LiveSession[] = [
     startTime: '2024-01-08T19:30:00',
     endTime: '2024-01-08T21:00:00',
     status: 'completed',
+    category: '知识分享',
+    targetAmount: 30000,
+    owner: '运营小王',
     viewerCount: 8650,
     transactionAmount: 45200,
     interactionRate: 0.18,
+    stockWarningThreshold: 100,
+    products: mockProducts.slice(0, 3),
+    scriptNodes: mockScriptNodes.slice(0, 4),
+    tasks: mockTasks.slice(2, 5),
+    danmaku: mockDanmaku.slice(5, 12),
+    abnormalEvents: [mockAbnormalEvents[0]],
+    reviewPoints: mockReviewPoints.slice(2, 5),
     createdAt: '2024-01-08T18:30:00',
     updatedAt: '2024-01-08T21:00:00',
   },
@@ -271,22 +322,28 @@ export const mockTemplates: Template[] = [
     name: '大促活动版',
     createdAt: '2024-01-01T15:30:00',
     products: mockProducts,
-    scriptNodes: [...mockScriptNodes, {
-      id: 'node-extra',
-      title: '终极秒杀',
-      content: '最后一波！全场买一送一，仅限最后10分钟！',
-      type: 'promotion',
-      timeOffset: 2400,
-      isCompleted: false,
-    }],
-    tasks: [...mockTasks, {
-      id: 'task-extra',
-      title: '确认活动库存',
-      description: '确保大促商品库存充足',
-      priority: 'high',
-      isCompleted: false,
-      category: '开播前',
-    }],
+    scriptNodes: [
+      ...mockScriptNodes,
+      {
+        id: 'node-extra',
+        title: '终极秒杀',
+        content: '最后一波！全场买一送一，仅限最后10分钟！',
+        type: 'promotion',
+        timeOffset: 2400,
+        isCompleted: false,
+      },
+    ],
+    tasks: [
+      ...mockTasks,
+      {
+        id: 'task-extra',
+        title: '确认活动库存',
+        description: '确保大促商品库存充足',
+        priority: 'high',
+        isCompleted: false,
+        category: '开播前',
+      },
+    ],
   },
 ];
 
@@ -295,7 +352,7 @@ export const mockHighFrequencyQuestions: HighFrequencyQuestion[] = [
   { question: '多少钱啊', count: 12, category: '价格咨询' },
   { question: '敏感肌能用吗', count: 8, category: '产品咨询' },
   { question: '有优惠吗', count: 7, category: '价格咨询' },
-  { question: '发货快吗', count: 5, category: '物流咨询' },
+  { question: '发货快吗', count: 5, category: '物流售后' },
   { question: '有小样吗', count: 4, category: '产品咨询' },
 ];
 
@@ -312,27 +369,33 @@ export const mockPeakData: PeakData[] = [
   { time: '21:15', amount: 4200, productId: 'prod-3', productName: '氨基酸洁面乳' },
 ];
 
-export const mockReviewPoints: ReviewPoint[] = [
-  { id: 'rp1', content: '开场节奏把控较好，观众留存率高', type: 'good' },
-  { id: 'rp2', content: '第一款产品讲解时间过长，导致观众流失', type: 'bad' },
-  { id: 'rp3', content: '互动环节参与度高，建议增加互动频次', type: 'good' },
-  { id: 'rp4', content: '限时优惠效果显著，成交峰值明显', type: 'good' },
-  { id: 'rp5', content: '中途画面卡顿，需检查网络和设备', type: 'bad' },
-  { id: 'rp6', content: '福利款秒杀转化好，下次可增加库存', type: 'improvement' },
-  { id: 'rp7', content: '建议优化产品讲解顺序，爆款后置', type: 'improvement' },
-];
-
-export const generateMockLiveSession = (): LiveSession => {
-  const now = new Date();
+export const createNewSession = (
+  title: string,
+  startTime: string,
+  category: string,
+  targetAmount: number,
+  owner: string
+): LiveSession => {
+  const now = new Date().toISOString();
   return {
     id: generateId(),
-    title: '新直播场次',
-    startTime: now.toISOString(),
+    title,
+    startTime,
     status: 'draft',
+    category,
+    targetAmount,
+    owner,
     viewerCount: 0,
     transactionAmount: 0,
     interactionRate: 0,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
+    stockWarningThreshold: 100,
+    products: [],
+    scriptNodes: [],
+    tasks: [],
+    danmaku: [],
+    abnormalEvents: [],
+    reviewPoints: [],
+    createdAt: now,
+    updatedAt: now,
   };
 };

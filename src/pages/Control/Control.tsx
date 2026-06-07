@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Play,
   Square,
@@ -8,13 +8,18 @@ import {
   AlertTriangle,
   ListTodo,
   Zap,
-  TimerReset,
+  SkipForward,
+  Clock3,
+  AlertCircle,
+  Package,
+  Bell,
 } from 'lucide-react';
 import Card from '@/components/Card/Card';
 import Progress from '@/components/Progress/Progress';
 import { useLiveStore } from '@/store/useLiveStore';
 import { formatDuration, formatTime } from '@/utils/format';
 import type { ScriptNode, Task } from '@/types';
+import { cn } from '@/lib/utils';
 
 const Control = () => {
   const {
@@ -22,19 +27,26 @@ const Control = () => {
     liveStartTime,
     scriptNodes,
     tasks,
+    products,
+    currentSession,
     startLive,
     endLive,
     completeScriptNode,
+    skipScriptNode,
+    delayScriptNode,
     toggleTask,
-    initStore,
   } = useLiveStore();
 
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [notifiedNodes, setNotifiedNodes] = useState<Set<string>>(new Set());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => {
-    initStore();
-  }, [initStore]);
+  const stockThreshold = currentSession?.stockWarningThreshold || 100;
+  const lowStockProducts = useMemo(
+    () => products.filter(p => p.stock < stockThreshold),
+    [products, stockThreshold]
+  );
 
   useEffect(() => {
     if (!isLiveOngoing || !liveStartTime) {
@@ -54,7 +66,9 @@ const Control = () => {
   }, [isLiveOngoing, liveStartTime]);
 
   const { currentNode, nextNode, progressPercent, sortedNodes } = useMemo(() => {
-    const sorted = [...scriptNodes].sort((a, b) => a.timeOffset - b.timeOffset);
+    const sorted = [...scriptNodes]
+      .filter(n => !n.isSkipped)
+      .sort((a, b) => a.timeOffset - b.timeOffset);
 
     let currentIdx = -1;
     for (let i = 0; i < sorted.length; i++) {
@@ -79,6 +93,18 @@ const Control = () => {
       sortedNodes: sorted,
     };
   }, [scriptNodes, elapsedSeconds]);
+
+  useEffect(() => {
+    if (currentNode && isLiveOngoing && !notifiedNodes.has(currentNode.id)) {
+      setNotifiedNodes(prev => new Set([...prev, currentNode.id]));
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('场控提醒', {
+          body: `当前环节：${currentNode.title}`,
+          icon: '/vite.svg',
+        });
+      }
+    }
+  }, [currentNode?.id, isLiveOngoing, notifiedNodes]);
 
   const countdownSeconds = useMemo(() => {
     if (!isLiveOngoing || !nextNode) return 0;
@@ -135,7 +161,8 @@ const Control = () => {
     return labels[priority];
   };
 
-  const getNodeStatus = (node: ScriptNode, index: number): 'completed' | 'current' | 'upcoming' => {
+  const getNodeStatus = (node: ScriptNode, index: number): 'completed' | 'current' | 'upcoming' | 'skipped' => {
+    if (node.isSkipped) return 'skipped';
     if (node.isCompleted) return 'completed';
     if (!isLiveOngoing) {
       if (index === 0) return 'current';
@@ -160,6 +187,30 @@ const Control = () => {
   };
 
   const completedTasksCount = tasks.filter(t => t.isCompleted).length;
+
+  const handleCompleteNode = (id: string) => {
+    completeScriptNode(id);
+  };
+
+  const handleSkipNode = (id: string) => {
+    skipScriptNode(id);
+  };
+
+  const handleDelayNode = (id: string, minutes: number) => {
+    delayScriptNode(id, minutes);
+  };
+
+  const handleStartLive = () => {
+    if (!isLiveOngoing) {
+      startLive();
+    }
+  };
+
+  const isNodeUrgent = (node: ScriptNode): boolean => {
+    if (!isLiveOngoing || node.isCompleted || node.isSkipped) return false;
+    const timeToNode = node.timeOffset - elapsedSeconds;
+    return timeToNode > 0 && timeToNode <= 60;
+  };
 
   return (
     <div className="h-full flex flex-col gap-4">
@@ -191,7 +242,7 @@ const Control = () => {
             </button>
           ) : (
             <button
-              onClick={startLive}
+              onClick={handleStartLive}
               className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-danger text-white shadow-glow-danger hover:bg-danger-light transition-all"
             >
               <Play className="w-4 h-4" fill="currentColor" />
@@ -201,12 +252,40 @@ const Control = () => {
         </div>
       </div>
 
+      {lowStockProducts.length > 0 && isLiveOngoing && (
+        <Card className="border-warning/30">
+          <Card.Body>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-warning" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-warning">库存风险提醒</h3>
+                <p className="text-sm text-slate-400 mt-0.5">
+                  当前有 <span className="text-warning font-medium">{lowStockProducts.length}</span> 件商品库存不足，请及时关注
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {lowStockProducts.slice(0, 5).map(p => (
+                  <span
+                    key={p.id}
+                    className="px-2 py-1 text-[11px] bg-danger/10 text-danger border border-danger/30 rounded-md"
+                  >
+                    {p.name}（剩{p.stock}件）
+                  </span>
+                ))}
+              </div>
+            </div>
+          </Card.Body>
+        </Card>
+      )}
+
       <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
         <div className="col-span-4 flex flex-col gap-4 min-h-0">
           <Card className="flex-1 flex flex-col">
             <Card.Header>
               <div className="flex items-center gap-2">
-                <TimerReset className="w-5 h-5 text-primary" />
+                <Clock className="w-5 h-5 text-primary" />
                 <Card.Title>实时看板</Card.Title>
               </div>
             </Card.Header>
@@ -244,7 +323,7 @@ const Control = () => {
                 </div>
                 <div className={`text-center py-4 px-6 rounded-xl ${
                   isLiveOngoing && currentNode
-                    ? 'bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30'
+                    ? 'bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 shadow-glow'
                     : 'bg-slate-800/50 border border-slate-700/50'
                 }`}>
                   <p className={`text-lg font-semibold ${
@@ -300,6 +379,31 @@ const Control = () => {
                   </p>
                 </div>
               </div>
+
+              <div className="mt-4 pt-4 border-t border-slate-700/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="w-4 h-4 text-slate-400" />
+                  <span className="text-xs text-slate-400">低库存商品</span>
+                  <span className="text-xs text-danger font-medium">
+                    {lowStockProducts.length} 件
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {lowStockProducts.slice(0, 4).map(p => (
+                    <span
+                      key={p.id}
+                      className="px-2 py-0.5 text-[10px] bg-danger/10 text-danger rounded"
+                    >
+                      {p.name}
+                    </span>
+                  ))}
+                  {lowStockProducts.length > 4 && (
+                    <span className="px-2 py-0.5 text-[10px] bg-slate-700/50 text-slate-400 rounded">
+                      +{lowStockProducts.length - 4}
+                    </span>
+                  )}
+                </div>
+              </div>
             </Card.Body>
           </Card>
         </div>
@@ -323,26 +427,41 @@ const Control = () => {
                   const status = getNodeStatus(node, index);
                   const isCurrent = status === 'current';
                   const isCompleted = status === 'completed';
+                  const isSkipped = status === 'skipped';
+                  const isUrgent = isNodeUrgent(node);
 
                   return (
                     <div
                       key={node.id}
-                      onClick={() => isLiveOngoing && completeScriptNode(node.id)}
-                      className={`relative p-4 rounded-xl border transition-all cursor-pointer ${
-                        isCurrent && isLiveOngoing
+                      className={cn(
+                        'relative p-4 rounded-xl border transition-all',
+                        isSkipped
+                          ? 'bg-slate-800/20 border-slate-700/30 opacity-40'
+                          : isCurrent && isLiveOngoing
                           ? 'bg-primary/10 border-primary/50 shadow-glow'
                           : isCompleted
                           ? 'bg-slate-800/30 border-slate-700/30 opacity-60'
+                          : isUrgent
+                          ? 'bg-warning/10 border-warning/40 animate-pulse'
                           : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-700/40 hover:border-slate-600'
-                      }`}
+                      )}
                     >
                       {isCurrent && isLiveOngoing && (
                         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full animate-pulse" />
                       )}
+                      {isUrgent && !isCompleted && !isSkipped && (
+                        <div className="absolute -top-1 -right-1">
+                          <div className="w-3 h-3 bg-warning rounded-full flex items-center justify-center">
+                            <Bell className="w-2 h-2 text-white" />
+                          </div>
+                        </div>
+                      )}
 
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5 shrink-0">
-                          {isCompleted ? (
+                          {isSkipped ? (
+                            <span className="text-xs text-slate-500">跳过</span>
+                          ) : isCompleted ? (
                             <CheckCircle2 className="w-5 h-5 text-success" />
                           ) : isCurrent && isLiveOngoing ? (
                             <div className="relative">
@@ -359,7 +478,7 @@ const Control = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              isCompleted
+                              isSkipped || isCompleted
                                 ? 'bg-slate-700/50 text-slate-500'
                                 : `${getNodeTypeBadgeClasses(node.type).bg} ${getNodeTypeBadgeClasses(node.type).text}`
                             }`}>
@@ -368,21 +487,70 @@ const Control = () => {
                             <span className="text-xs text-slate-500 font-numeric">
                               {formatNodeTime(node.timeOffset)}
                             </span>
+                            {isUrgent && !isCompleted && !isSkipped && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning">
+                                即将开始
+                              </span>
+                            )}
                           </div>
-                          <p className={`text-sm font-medium mt-1.5 ${
-                            isCompleted ? 'text-slate-500 line-through' : 'text-slate-200'
-                          }`}>
+                          <p className={cn(
+                            'text-sm font-medium mt-1.5',
+                            isSkipped || isCompleted
+                              ? 'text-slate-500 line-through'
+                              : 'text-slate-200'
+                          )}>
                             {node.title}
                           </p>
-                          <p className={`text-xs mt-1 line-clamp-2 ${
-                            isCompleted ? 'text-slate-600' : 'text-slate-400'
-                          }`}>
+                          <p className={cn(
+                            'text-xs mt-1 line-clamp-2',
+                            isSkipped || isCompleted
+                              ? 'text-slate-600'
+                              : 'text-slate-400'
+                          )}>
                             {node.content}
                           </p>
-                          {!isCompleted && !isCurrent && (
+                          {!isCompleted && !isSkipped && !isCurrent && (
                             <p className="text-xs text-slate-500 mt-2 font-numeric">
                               预计 {getEstimatedTime(node.timeOffset)} 开始
                             </p>
+                          )}
+
+                          {isLiveOngoing && !isSkipped && (
+                            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-700/30">
+                              {!isCompleted ? (
+                                <>
+                                  <button
+                                    onClick={() => handleCompleteNode(node.id)}
+                                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-success bg-success/10 hover:bg-success/20 rounded-md transition-colors"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    标记已播
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelayNode(node.id, 5)}
+                                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-warning bg-warning/10 hover:bg-warning/20 rounded-md transition-colors"
+                                  >
+                                    <Clock3 className="w-3.5 h-3.5" />
+                                    延后5分
+                                  </button>
+                                  <button
+                                    onClick={() => handleSkipNode(node.id)}
+                                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-slate-400 bg-slate-700/30 hover:bg-slate-700/50 rounded-md transition-colors"
+                                  >
+                                    <SkipForward className="w-3.5 h-3.5" />
+                                    跳过
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => handleCompleteNode(node.id)}
+                                  className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-slate-400 bg-slate-700/30 hover:bg-slate-700/50 rounded-md transition-colors"
+                                >
+                                  <Circle className="w-3.5 h-3.5" />
+                                  撤销完成
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -416,23 +584,25 @@ const Control = () => {
                     <div
                       key={task.id}
                       onClick={() => toggleTask(task.id)}
-                      className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                      className={cn(
+                        'p-4 rounded-xl border cursor-pointer transition-all',
                         task.isCompleted
                           ? 'bg-slate-800/20 border-slate-700/30 opacity-50'
                           : isHighPriority
                           ? 'bg-danger/10 border-danger/40 hover:bg-danger/15'
                           : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-700/40 hover:border-slate-600'
-                      }`}
+                      )}
                     >
                       <div className="flex items-start gap-3">
                         <div
-                          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                          className={cn(
+                            'mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
                             task.isCompleted
                               ? 'bg-success border-success'
                               : isHighPriority
                               ? 'border-danger'
                               : 'border-slate-500'
-                          }`}
+                          )}
                         >
                           {task.isCompleted && (
                             <CheckCircle2 className="w-4 h-4 text-white" />
@@ -441,7 +611,8 @@ const Control = () => {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            <span className={cn(
+                              'text-xs px-2 py-0.5 rounded-full font-medium',
                               task.isCompleted
                                 ? 'bg-slate-700/50 text-slate-500'
                                 : task.priority === 'high'
@@ -449,25 +620,35 @@ const Control = () => {
                                 : task.priority === 'medium'
                                 ? 'bg-warning/20 text-warning'
                                 : 'bg-slate-600/50 text-slate-400'
-                            }`}>
+                            )}>
                               {getPriorityLabel(task.priority)}
                             </span>
                             <span className="text-xs text-slate-500">{task.category}</span>
                           </div>
-                          <p className={`text-sm font-medium mt-1.5 ${
+                          <p className={cn(
+                            'text-sm font-medium mt-1.5',
                             task.isCompleted
                               ? 'text-slate-500 line-through'
                               : isHighPriority
                               ? 'text-white'
                               : 'text-slate-200'
-                          }`}>
+                          )}>
                             {task.title}
                           </p>
-                          <p className={`text-xs mt-1 ${
+                          <p className={cn(
+                            'text-xs mt-1',
                             task.isCompleted ? 'text-slate-600' : 'text-slate-400'
-                          }`}>
+                          )}>
                             {task.description}
                           </p>
+                          {task.sourceDanmakuContent && !task.isCompleted && (
+                            <div className="mt-2 p-2 bg-slate-700/30 rounded-md">
+                              <p className="text-[10px] text-slate-500 mb-0.5">来源弹幕：</p>
+                              <p className="text-xs text-slate-400 line-clamp-1">
+                                "{task.sourceDanmakuContent}"
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -478,10 +659,10 @@ const Control = () => {
             <Card.Footer>
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>任务完成率</span>
-                <span className="font-numeric">{Math.round((completedTasksCount / tasks.length) * 100)}%</span>
+                <span className="font-numeric">{tasks.length > 0 ? Math.round((completedTasksCount / tasks.length) * 100) : 0}%</span>
               </div>
               <div className="mt-2">
-                <Progress value={completedTasksCount} max={tasks.length} size="sm" color="success" />
+                <Progress value={completedTasksCount} max={tasks.length || 1} size="sm" color="success" />
               </div>
             </Card.Footer>
           </Card>
