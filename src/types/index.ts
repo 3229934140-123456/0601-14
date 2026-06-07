@@ -1,5 +1,40 @@
 export type LiveStatus = 'draft' | 'ongoing' | 'completed';
 
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  avatar?: string;
+}
+
+export type OperationType =
+  | 'complete_script_node'
+  | 'skip_script_node'
+  | 'delay_script_node'
+  | 'add_product'
+  | 'delete_product'
+  | 'update_product'
+  | 'mark_on_shelf'
+  | 'create_task'
+  | 'complete_task'
+  | 'generate_replenish_task'
+  | 'start_live'
+  | 'end_live'
+  | 'import_products'
+  | 'import_danmaku'
+  | 'add_review_point';
+
+export interface OperationLog {
+  id: string;
+  type: OperationType;
+  operator: string;
+  targetId?: string;
+  targetName?: string;
+  description: string;
+  timestamp: string;
+  extra?: Record<string, any>;
+}
+
 export interface LiveSession {
   id: string;
   title: string;
@@ -20,6 +55,9 @@ export interface LiveSession {
   danmaku: Danmaku[];
   abnormalEvents: AbnormalEvent[];
   reviewPoints: ReviewPoint[];
+  peakData: PeakData[];
+  teamMembers: TeamMember[];
+  operationLogs: OperationLog[];
   createdAt: string;
   updatedAt: string;
 }
@@ -86,8 +124,12 @@ export interface Task {
   isCompleted: boolean;
   dueTime?: string;
   category: string;
+  assignee?: string;
   sourceDanmakuId?: string;
   sourceDanmakuContent?: string;
+  relatedProductId?: string;
+  relatedProductName?: string;
+  relatedProductStock?: number;
 }
 
 export interface Template {

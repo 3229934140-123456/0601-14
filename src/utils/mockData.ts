@@ -9,6 +9,8 @@ import type {
   HighFrequencyQuestion,
   PeakData,
   ReviewPoint,
+  TeamMember,
+  OperationLog,
 } from '@/types';
 import { generateId } from './format';
 
@@ -239,6 +241,104 @@ export const mockReviewPoints: ReviewPoint[] = [
   { id: 'rp7', content: '建议优化产品讲解顺序，爆款后置', type: 'improvement' },
 ];
 
+export const mockPeakData: PeakData[] = [
+  { time: '19:05', amount: 5800, productId: 'prod-1', productName: '高端保湿面霜' },
+  { time: '19:15', amount: 3200, productId: 'prod-2', productName: '精华液套装' },
+  { time: '19:30', amount: 12500, productId: 'prod-5', productName: '面膜礼盒装' },
+  { time: '19:45', amount: 8900, productId: 'prod-1', productName: '高端保湿面霜' },
+  { time: '20:00', amount: 15800, productId: 'prod-2', productName: '精华液套装' },
+  { time: '20:15', amount: 6700, productId: 'prod-3', productName: '氨基酸洁面乳' },
+  { time: '20:30', amount: 18200, productId: 'prod-5', productName: '面膜礼盒装' },
+  { time: '20:45', amount: 9600, productId: 'prod-4', productName: '补水喷雾' },
+  { time: '21:00', amount: 7300, productId: 'prod-6', productName: '护手霜套装' },
+  { time: '21:15', amount: 4200, productId: 'prod-3', productName: '氨基酸洁面乳' },
+];
+
+const session2PeakData: PeakData[] = [
+  { time: '20:05', amount: 12000, productId: 'prod-1', productName: '高端保湿面霜' },
+  { time: '20:20', amount: 18500, productId: 'prod-2', productName: '精华液套装' },
+  { time: '20:40', amount: 25600, productId: 'prod-1', productName: '高端保湿面霜' },
+  { time: '21:00', amount: 32000, productId: 'prod-2', productName: '精华液套装' },
+  { time: '21:20', amount: 28900, productId: 'prod-3', productName: '氨基酸洁面乳' },
+  { time: '21:40', amount: 22000, productId: 'prod-4', productName: '补水喷雾' },
+];
+
+const session3PeakData: PeakData[] = [
+  { time: '19:35', amount: 3200, productId: 'prod-1', productName: '高端保湿面霜' },
+  { time: '19:50', amount: 5800, productId: 'prod-2', productName: '精华液套装' },
+  { time: '20:10', amount: 8900, productId: 'prod-1', productName: '高端保湿面霜' },
+  { time: '20:30', amount: 12500, productId: 'prod-3', productName: '氨基酸洁面乳' },
+  { time: '20:50', amount: 7600, productId: 'prod-2', productName: '精华液套装' },
+];
+
+const mockTeamMembers: TeamMember[] = [
+  { id: 'member-1', name: '运营小王', role: '场控' },
+  { id: 'member-2', name: '主播小美', role: '主播' },
+  { id: 'member-3', name: '助理小李', role: '助理' },
+  { id: 'member-4', name: '客服小张', role: '客服' },
+];
+
+const session1OperationLogs: OperationLog[] = [
+  {
+    id: 'log-1',
+    type: 'start_live',
+    operator: '运营小王',
+    description: '开始直播',
+    timestamp: '2024-01-15T19:00:00',
+  },
+  {
+    id: 'log-2',
+    type: 'complete_script_node',
+    operator: '运营小王',
+    targetId: 'node-1',
+    targetName: '开场欢迎',
+    description: '标记脚本节点「开场欢迎」为已完成',
+    timestamp: '2024-01-15T19:05:00',
+  },
+  {
+    id: 'log-3',
+    type: 'mark_on_shelf',
+    operator: '助理小李',
+    targetId: 'prod-1',
+    targetName: '高端保湿面霜 50g',
+    description: '标记商品「高端保湿面霜 50g」已上架',
+    timestamp: '2024-01-15T19:06:00',
+  },
+  {
+    id: 'log-4',
+    type: 'delay_script_node',
+    operator: '运营小王',
+    targetId: 'node-3',
+    targetName: '互动抽奖',
+    description: '将脚本节点「互动抽奖」延后5分钟',
+    timestamp: '2024-01-15T19:20:00',
+    extra: { delayMinutes: 5 },
+  },
+  {
+    id: 'log-5',
+    type: 'generate_replenish_task',
+    operator: '运营小王',
+    description: '生成2条补货待办任务',
+    timestamp: '2024-01-15T19:30:00',
+  },
+  {
+    id: 'log-6',
+    type: 'complete_script_node',
+    operator: '运营小王',
+    targetId: 'node-2',
+    targetName: '第一款主推：保湿面霜',
+    description: '标记脚本节点「第一款主推：保湿面霜」为已完成',
+    timestamp: '2024-01-15T19:35:00',
+  },
+  {
+    id: 'log-7',
+    type: 'end_live',
+    operator: '运营小王',
+    description: '结束直播',
+    timestamp: '2024-01-15T21:30:00',
+  },
+];
+
 export const mockLiveSessions: LiveSession[] = [
   {
     id: 'session-1',
@@ -259,6 +359,9 @@ export const mockLiveSessions: LiveSession[] = [
     danmaku: mockDanmaku,
     abnormalEvents: mockAbnormalEvents,
     reviewPoints: mockReviewPoints,
+    peakData: mockPeakData,
+    teamMembers: mockTeamMembers,
+    operationLogs: session1OperationLogs,
     createdAt: '2024-01-15T18:00:00',
     updatedAt: '2024-01-15T21:30:00',
   },
@@ -281,6 +384,13 @@ export const mockLiveSessions: LiveSession[] = [
     danmaku: mockDanmaku.slice(0, 8),
     abnormalEvents: [],
     reviewPoints: mockReviewPoints.slice(0, 4),
+    peakData: session2PeakData,
+    teamMembers: [
+      { id: 'm1', name: '运营小李', role: '场控' },
+      { id: 'm2', name: '主播小美', role: '主播' },
+      { id: 'm3', name: '客服小张', role: '客服' },
+    ],
+    operationLogs: [],
     createdAt: '2024-01-10T19:00:00',
     updatedAt: '2024-01-10T22:45:00',
   },
@@ -303,6 +413,12 @@ export const mockLiveSessions: LiveSession[] = [
     danmaku: mockDanmaku.slice(5, 12),
     abnormalEvents: [mockAbnormalEvents[0]],
     reviewPoints: mockReviewPoints.slice(2, 5),
+    peakData: session3PeakData,
+    teamMembers: [
+      { id: 'm1', name: '运营小王', role: '场控' },
+      { id: 'm2', name: '主播小艾', role: '主播' },
+    ],
+    operationLogs: [],
     createdAt: '2024-01-08T18:30:00',
     updatedAt: '2024-01-08T21:00:00',
   },
@@ -356,19 +472,6 @@ export const mockHighFrequencyQuestions: HighFrequencyQuestion[] = [
   { question: '有小样吗', count: 4, category: '产品咨询' },
 ];
 
-export const mockPeakData: PeakData[] = [
-  { time: '19:05', amount: 5800, productId: 'prod-1', productName: '高端保湿面霜' },
-  { time: '19:15', amount: 3200, productId: 'prod-2', productName: '精华液套装' },
-  { time: '19:30', amount: 12500, productId: 'prod-5', productName: '面膜礼盒装' },
-  { time: '19:45', amount: 8900, productId: 'prod-1', productName: '高端保湿面霜' },
-  { time: '20:00', amount: 15800, productId: 'prod-2', productName: '精华液套装' },
-  { time: '20:15', amount: 6700, productId: 'prod-3', productName: '氨基酸洁面乳' },
-  { time: '20:30', amount: 18200, productId: 'prod-5', productName: '面膜礼盒装' },
-  { time: '20:45', amount: 9600, productId: 'prod-4', productName: '补水喷雾' },
-  { time: '21:00', amount: 7300, productId: 'prod-6', productName: '护手霜套装' },
-  { time: '21:15', amount: 4200, productId: 'prod-3', productName: '氨基酸洁面乳' },
-];
-
 export const createNewSession = (
   title: string,
   startTime: string,
@@ -395,6 +498,9 @@ export const createNewSession = (
     danmaku: [],
     abnormalEvents: [],
     reviewPoints: [],
+    peakData: [],
+    teamMembers: [{ id: generateId(), name: owner, role: '场控' }],
+    operationLogs: [],
     createdAt: now,
     updatedAt: now,
   };

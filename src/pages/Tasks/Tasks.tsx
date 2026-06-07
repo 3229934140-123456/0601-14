@@ -21,6 +21,10 @@ import {
   MessageSquare,
   Tag,
   TrendingUp,
+  User,
+  Package,
+  History,
+  Target,
 } from 'lucide-react';
 import Card from '@/components/Card/Card';
 import { useLiveStore } from '@/store/useLiveStore';
@@ -60,6 +64,8 @@ const Tasks = () => {
     sessions,
     templates,
     tasks,
+    teamMembers,
+    operationLogs,
     currentSession,
     saveAsTemplate,
     applyTemplate,
@@ -68,17 +74,26 @@ const Tasks = () => {
     switchSession,
     toggleTask,
     addTask,
+    createSession,
   } = useLiveStore();
 
   const [activeTab, setActiveTab] = useState<TabType>('tasks');
   const [taskCategory, setTaskCategory] = useState<TaskCategory>('all');
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskCategory, setNewTaskCategory] = useState<string>('直播中');
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>('medium');
+  const [newSessionData, setNewSessionData] = useState({
+    title: '',
+    startTime: '',
+    category: '美妆',
+    targetAmount: 0,
+    owner: '运营小王',
+  });
   const [confirmAction, setConfirmAction] = useState<{
     type: 'applyTemplate' | 'deleteTemplate' | 'deleteSession';
     id: string;
@@ -112,6 +127,12 @@ const Tasks = () => {
   const danmakuSourceTasks = useMemo(() => {
     return tasks.filter(t => t.sourceDanmakuId);
   }, [tasks]);
+
+  const sortedOperationLogs = useMemo(() => {
+    return [...operationLogs].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [operationLogs]);
 
   const handleExportCSV = () => {
     const pendingTasks = tasks.filter((t) => !t.isCompleted);
@@ -156,6 +177,25 @@ const Tasks = () => {
     setNewTaskCategory('直播中');
     setNewTaskPriority('medium');
     setShowAddTaskModal(false);
+  };
+
+  const handleCreateSession = () => {
+    if (!newSessionData.title.trim() || !newSessionData.startTime) return;
+    createSession({
+      title: newSessionData.title,
+      startTime: new Date(newSessionData.startTime).toISOString(),
+      category: newSessionData.category,
+      targetAmount: newSessionData.targetAmount,
+      owner: newSessionData.owner,
+    });
+    setShowNewSessionModal(false);
+    setNewSessionData({
+      title: '',
+      startTime: '',
+      category: '美妆',
+      targetAmount: 0,
+      owner: '运营小王',
+    });
   };
 
   const handleConfirmAction = () => {
@@ -277,6 +317,21 @@ const Tasks = () => {
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'sessions' && (
             <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm font-medium text-slate-200">历史场次</span>
+                  <span className="text-xs text-slate-500">共 {sessions.length} 场</span>
+                </div>
+                <button
+                  onClick={() => setShowNewSessionModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium transition-all hover:bg-primary/90 shadow-glow hover:shadow-glow-hover"
+                >
+                  <Plus className="w-4 h-4" />
+                  新建场次
+                </button>
+              </div>
+
               {sessions.length === 0 ? (
                 <div className="py-16 text-center">
                   <Calendar className="w-12 h-12 text-slate-600 mx-auto mb-3" />
@@ -468,7 +523,7 @@ const Tasks = () => {
 
           {activeTab === 'tasks' && (
             <div className="h-full flex flex-col">
-              <div className="grid grid-cols-4 gap-3 mb-5">
+              <div className="grid grid-cols-5 gap-3 mb-5">
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckSquare className="w-4 h-4 text-primary" />
@@ -496,6 +551,13 @@ const Tasks = () => {
                     <span className="text-xs text-slate-400">弹幕来源</span>
                   </div>
                   <p className="text-2xl font-bold text-info">{danmakuSourceTasks.length}</p>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="w-4 h-4 text-purple-400" />
+                    <span className="text-xs text-slate-400">团队成员</span>
+                  </div>
+                  <p className="text-2xl font-bold text-purple-400">{teamMembers.length}</p>
                 </div>
               </div>
 
@@ -612,6 +674,26 @@ const Tasks = () => {
                             {task.description}
                           </p>
 
+                          {(task.assignee || task.relatedProductName) && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {task.assignee && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                                  <User className="w-3 h-3" />
+                                  {task.assignee}
+                                </span>
+                              )}
+                              {task.relatedProductName && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                  <Package className="w-3 h-3" />
+                                  {task.relatedProductName}
+                                  {task.relatedProductStock !== undefined && (
+                                    <span className="ml-1">库存: {task.relatedProductStock}</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           {task.sourceDanmakuContent && !task.isCompleted && (
                             <div className="mt-3 p-2.5 bg-slate-700/30 rounded-lg border border-slate-600/20">
                               <div className="flex items-center gap-1.5 mb-1">
@@ -653,6 +735,45 @@ const Tasks = () => {
                     </span>
                   )}
                 </span>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-700/30">
+                <div className="flex items-center gap-2 mb-4">
+                  <History className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm font-medium text-slate-200">操作记录</span>
+                  <span className="text-xs text-slate-500">共 {sortedOperationLogs.length} 条</span>
+                </div>
+
+                {sortedOperationLogs.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <History className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm text-slate-500">暂无操作记录</p>
+                  </div>
+                ) : (
+                  <div className="relative max-h-64 overflow-y-auto -mx-5 px-5">
+                    <div className="absolute left-7 top-1 bottom-1 w-px bg-slate-700/50" />
+                    <div className="space-y-3">
+                      {sortedOperationLogs.map((log) => (
+                        <div key={log.id} className="relative flex items-start gap-3 pl-2">
+                          <div className="relative z-10 w-3 h-3 mt-1 rounded-full bg-primary border-2 border-slate-850 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-medium text-slate-200">
+                                {log.operator}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {formatDateTime(log.timestamp)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                              {log.description}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -747,6 +868,114 @@ const Tasks = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 创建任务
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewSessionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowNewSessionModal(false)}
+          />
+          <div className="relative w-full max-w-md bg-slate-850 rounded-xl border border-slate-700/50 shadow-xl animate-fade-in">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
+              <h3 className="text-sm font-semibold text-slate-100">新建直播场次</h3>
+              <button
+                onClick={() => setShowNewSessionModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-md transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  直播标题 <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newSessionData.title}
+                  onChange={(e) => setNewSessionData({ ...newSessionData, title: e.target.value })}
+                  placeholder="请输入直播标题"
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  开播时间 <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={newSessionData.startTime}
+                  onChange={(e) => setNewSessionData({ ...newSessionData, startTime: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    类目
+                  </label>
+                  <select
+                    value={newSessionData.category}
+                    onChange={(e) => setNewSessionData({ ...newSessionData, category: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                  >
+                    <option value="美妆">美妆</option>
+                    <option value="服饰">服饰</option>
+                    <option value="食品">食品</option>
+                    <option value="家居">家居</option>
+                    <option value="数码">数码</option>
+                    <option value="其他">其他</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    负责人
+                  </label>
+                  <input
+                    type="text"
+                    value={newSessionData.owner}
+                    onChange={(e) => setNewSessionData({ ...newSessionData, owner: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  目标成交额（元）
+                </label>
+                <input
+                  type="number"
+                  value={newSessionData.targetAmount}
+                  onChange={(e) => setNewSessionData({ ...newSessionData, targetAmount: Number(e.target.value) })}
+                  min="0"
+                  className="w-full px-3.5 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-700/50">
+              <button
+                onClick={() => setShowNewSessionModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateSession}
+                disabled={!newSessionData.title.trim() || !newSessionData.startTime}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                创建场次
               </button>
             </div>
           </div>

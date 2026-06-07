@@ -15,6 +15,10 @@ import {
   X,
   Clock,
   Tag,
+  ShoppingBag,
+  CheckSquare,
+  BarChart3,
+  Sparkles,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -29,7 +33,6 @@ import {
 import Card from '@/components/Card/Card';
 import StatCard from '@/components/Card/StatCard';
 import { useLiveStore } from '@/store/useLiveStore';
-import { mockPeakData } from '@/utils/mockData';
 import {
   formatCurrency,
   formatNumber,
@@ -40,8 +43,18 @@ import {
 import type { AbnormalType, ReviewPoint as ReviewPointType, PeakData } from '@/types';
 
 const Review = () => {
-  const { currentSession, abnormalEvents, reviewPoints, addReviewPoint, deleteReviewPoint } =
-    useLiveStore();
+  const {
+    currentSession,
+    abnormalEvents,
+    reviewPoints,
+    addReviewPoint,
+    deleteReviewPoint,
+    peakData,
+    products,
+    tasks,
+    danmaku,
+    scriptNodes,
+  } = useLiveStore();
 
   const [newPointType, setNewPointType] = useState<ReviewPointType['type']>('good');
   const [newPointContent, setNewPointContent] = useState('');
@@ -53,13 +66,86 @@ const Review = () => {
     return buyerCount > 0 ? currentSession.transactionAmount / buyerCount : 0;
   }, [currentSession]);
 
-  const peakData = useMemo(() => {
-    return mockPeakData.sort((a, b) => b.amount - a.amount).slice(0, 5);
-  }, []);
+  const sessionPeakData = useMemo(() => {
+    if (peakData && peakData.length > 0) {
+      return peakData;
+    }
+    if (products.length > 0 && danmaku.length > 0) {
+      return generateSimulatedPeakData();
+    }
+    return [];
+  }, [peakData, products, danmaku]);
+
+  const generateSimulatedPeakData = (): PeakData[] => {
+    const simulated: PeakData[] = [];
+    const productList = products.slice(0, Math.min(5, products.length));
+    const totalNodes = scriptNodes.length || 5;
+
+    productList.forEach((product, idx) => {
+      const timeOffset = Math.floor((idx + 1) * (120 / productList.length));
+      const hours = 19 + Math.floor(timeOffset / 60);
+      const minutes = timeOffset % 60;
+      const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+
+      const baseAmount = product.price * (10 + Math.floor(Math.random() * 20));
+      const amount = Math.floor(baseAmount * (0.8 + Math.random() * 0.4));
+
+      simulated.push({
+        time: timeStr,
+        amount,
+        productId: product.id,
+        productName: product.name,
+      });
+    });
+
+    return simulated.sort((a, b) => a.time.localeCompare(b.time));
+  };
+
+  const peakDataSorted = useMemo(() => {
+    return [...sessionPeakData].sort((a, b) => b.amount - a.amount).slice(0, 5);
+  }, [sessionPeakData]);
 
   const maxAmount = useMemo(() => {
-    return Math.max(...mockPeakData.map((item) => item.amount));
-  }, []);
+    if (sessionPeakData.length === 0) return 0;
+    return Math.max(...sessionPeakData.map((item) => item.amount));
+  }, [sessionPeakData]);
+
+  const hasRealPeakData = peakData && peakData.length > 0;
+
+  const completionStats = useMemo(() => {
+    const completedTasks = tasks.filter((t) => t.isCompleted).length;
+    const totalTasks = tasks.length;
+    const completedNodes = scriptNodes.filter((n) => n.isCompleted).length;
+    const totalNodes = scriptNodes.length;
+    const onShelfProducts = products.filter((p) => p.onShelfTime).length;
+
+    return {
+      completedTasks,
+      totalTasks,
+      taskCompletionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      completedNodes,
+      totalNodes,
+      nodeCompletionRate: totalNodes > 0 ? Math.round((completedNodes / totalNodes) * 100) : 0,
+      onShelfProducts,
+      totalProducts: products.length,
+    };
+  }, [tasks, scriptNodes, products]);
+
+  const danmakuStats = useMemo(() => {
+    const productQuestions = danmaku.filter((d) => d.category === '产品咨询').length;
+    const priceQuestions = danmaku.filter((d) => d.category === '价格咨询').length;
+    const positiveDanmaku = danmaku.filter((d) => d.sentiment === 'positive').length;
+    const negativeDanmaku = danmaku.filter((d) => d.sentiment === 'negative').length;
+
+    return {
+      productQuestions,
+      priceQuestions,
+      positiveDanmaku,
+      negativeDanmaku,
+      totalDanmaku: danmaku.length,
+      positiveRate: danmaku.length > 0 ? Math.round((positiveDanmaku / danmaku.length) * 100) : 0,
+    };
+  }, [danmaku]);
 
   const handleAddPoint = () => {
     if (!newPointContent.trim()) return;
@@ -229,12 +315,116 @@ const Review = () => {
         />
       </div>
 
+      <Card>
+        <Card.Header>
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <Card.Title>复盘摘要</Card.Title>
+          </div>
+        </Card.Header>
+        <Card.Body>
+          <div className="grid grid-cols-7 gap-4">
+            <div className="text-center">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-primary/10 flex items-center justify-center">
+                <CheckSquare className="w-5 h-5 text-primary" />
+              </div>
+              <p className="text-xs text-slate-400 mb-1">任务完成率</p>
+              <p className="text-lg font-bold text-slate-100 font-numeric">
+                {completionStats.taskCompletionRate}%
+              </p>
+              <p className="text-xs text-slate-500">
+                {completionStats.completedTasks}/{completionStats.totalTasks}
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-success/10 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-success" />
+              </div>
+              <p className="text-xs text-slate-400 mb-1">脚本节点完成率</p>
+              <p className="text-lg font-bold text-slate-100 font-numeric">
+                {completionStats.nodeCompletionRate}%
+              </p>
+              <p className="text-xs text-slate-500">
+                {completionStats.completedNodes}/{completionStats.totalNodes}
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-warning/10 flex items-center justify-center">
+                <ShoppingBag className="w-5 h-5 text-warning" />
+              </div>
+              <p className="text-xs text-slate-400 mb-1">已上架商品</p>
+              <p className="text-lg font-bold text-slate-100 font-numeric">
+                {completionStats.onShelfProducts}
+              </p>
+              <p className="text-xs text-slate-500">
+                共 {completionStats.totalProducts} 件
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-success/10 flex items-center justify-center">
+                <ThumbsUp className="w-5 h-5 text-success" />
+              </div>
+              <p className="text-xs text-slate-400 mb-1">弹幕正面率</p>
+              <p className="text-lg font-bold text-slate-100 font-numeric">
+                {danmakuStats.positiveRate}%
+              </p>
+              <p className="text-xs text-slate-500">
+                {danmakuStats.positiveDanmaku}/{danmakuStats.totalDanmaku}
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-primary/10 flex items-center justify-center">
+                <MessageCircle className="w-5 h-5 text-primary" />
+              </div>
+              <p className="text-xs text-slate-400 mb-1">产品咨询</p>
+              <p className="text-lg font-bold text-slate-100 font-numeric">
+                {danmakuStats.productQuestions}
+              </p>
+              <p className="text-xs text-slate-500">
+                条
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-warning/10 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-warning" />
+              </div>
+              <p className="text-xs text-slate-400 mb-1">价格咨询</p>
+              <p className="text-lg font-bold text-slate-100 font-numeric">
+                {danmakuStats.priceQuestions}
+              </p>
+              <p className="text-xs text-slate-500">
+                条
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-lg bg-danger/10 flex items-center justify-center">
+                <ThumbsDown className="w-5 h-5 text-danger" />
+              </div>
+              <p className="text-xs text-slate-400 mb-1">负面反馈</p>
+              <p className="text-lg font-bold text-slate-100 font-numeric">
+                {danmakuStats.negativeDanmaku}
+              </p>
+              <p className="text-xs text-slate-500">
+                条
+              </p>
+            </div>
+          </div>
+        </Card.Body>
+      </Card>
+
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
           <Card>
             <Card.Header>
               <div className="flex items-center justify-between">
-                <Card.Title>成交趋势图</Card.Title>
+                <div className="flex items-center gap-2">
+                  <Card.Title>成交趋势图</Card.Title>
+                  {!hasRealPeakData && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-warning/10 text-warning border border-warning/30">
+                      数据为模拟生成
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400">
                   <TrendingUp className="w-4 h-4 text-success" />
                   <span>峰值: {formatCurrency(maxAmount)}</span>
@@ -244,7 +434,7 @@ const Review = () => {
             <Card.Body>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={mockPeakData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <AreaChart data={sessionPeakData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
@@ -276,7 +466,7 @@ const Review = () => {
                       dot={{ fill: '#10B981', strokeWidth: 2, r: 4, stroke: '#0F172A' }}
                       activeDot={{ r: 6, fill: '#10B981', stroke: '#0F172A', strokeWidth: 2 }}
                     />
-                    {mockPeakData
+                    {sessionPeakData
                       .filter((item) => item.amount === maxAmount)
                       .map((item, index) => (
                         <ReferenceDot
@@ -298,13 +488,20 @@ const Review = () => {
           <Card>
             <Card.Header>
               <div className="flex items-center justify-between">
-                <Card.Title>成交峰值分析</Card.Title>
+                <div className="flex items-center gap-2">
+                  <Card.Title>成交峰值分析</Card.Title>
+                  {!hasRealPeakData && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-warning/10 text-warning border border-warning/30">
+                      数据为模拟生成
+                    </span>
+                  )}
+                </div>
                 <Tag className="w-4 h-4 text-slate-400" />
               </div>
             </Card.Header>
             <Card.Body>
               <div className="space-y-3">
-                {peakData.map((peak, index) => (
+                {peakDataSorted.map((peak, index) => (
                   <div
                     key={peak.time}
                     className="flex items-center gap-4 p-3 bg-slate-800/40 rounded-lg hover:bg-slate-800/70 transition-colors"

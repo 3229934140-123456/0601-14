@@ -139,7 +139,15 @@ const Products = () => {
   });
 
   const [importText, setImportText] = useState('');
-  const [importPreview, setImportPreview] = useState<Array<{ name: string; stock: number; price: number; originalPrice: number; type: ProductType }>>([]);
+  const [importPreview, setImportPreview] = useState<Array<{
+    name: string;
+    stock: number;
+    price: number;
+    originalPrice: number;
+    type: ProductType;
+    isValid: boolean;
+    errors: string[];
+  }>>([]);
 
   const stockThreshold = currentSession?.stockWarningThreshold || 100;
 
@@ -235,23 +243,69 @@ const Products = () => {
     }
 
     const lines = importText.trim().split('\n');
-    const parsed: Array<{ name: string; stock: number; price: number; originalPrice: number; type: ProductType }> = [];
+    const parsed: Array<{
+      name: string;
+      stock: number;
+      price: number;
+      originalPrice: number;
+      type: ProductType;
+      isValid: boolean;
+      errors: string[];
+    }> = [];
 
-    for (const line of lines) {
+    const headerKeywords = ['商品', '库存', '价格', '售价', '原价', '类型', '名称', '产品', '数量', '单价'];
+    let startIndex = 0;
+
+    if (lines.length > 0) {
+      const firstLine = lines[0].toLowerCase();
+      const hasHeaderKeywords = headerKeywords.some(keyword => firstLine.includes(keyword.toLowerCase()));
+      if (hasHeaderKeywords) {
+        startIndex = 1;
+      }
+    }
+
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i];
       const parts = line.split(/[,\t，]/).map(s => s.trim());
-      if (parts.length >= 2) {
+      if (parts.length >= 1 && parts[0]) {
+        const errors: string[] = [];
         const name = parts[0] || '';
-        const stock = parseInt(parts[1]) || 0;
-        const price = parseFloat(parts[2]) || 0;
-        const originalPrice = parseFloat(parts[3]) || price;
+
+        const stockStr = parts[1];
+        const stock = stockStr !== undefined ? parseInt(stockStr) : NaN;
+        const isStockValid = !isNaN(stock) && stock >= 0;
+        if (!isStockValid) {
+          errors.push('库存格式错误');
+        }
+
+        const priceStr = parts[2];
+        const price = priceStr !== undefined ? parseFloat(priceStr) : NaN;
+        const isPriceValid = !isNaN(price) && price >= 0;
+        if (!isPriceValid) {
+          errors.push('价格格式错误');
+        }
+
+        const originalPriceStr = parts[3];
+        const originalPrice = originalPriceStr && !isNaN(parseFloat(originalPriceStr))
+          ? parseFloat(originalPriceStr)
+          : (isPriceValid ? price : 0);
+
         const typeStr = (parts[4] || 'main').toLowerCase();
         let type: ProductType = 'main';
         if (typeStr.includes('辅') || typeStr === 'secondary') type = 'secondary';
         if (typeStr.includes('福') || typeStr === 'bonus') type = 'bonus';
 
-        if (name) {
-          parsed.push({ name, stock, price, originalPrice, type });
-        }
+        const isValid = isStockValid && isPriceValid && !!name;
+
+        parsed.push({
+          name,
+          stock: isStockValid ? stock : 0,
+          price: isPriceValid ? price : 0,
+          originalPrice,
+          type,
+          isValid,
+          errors,
+        });
       }
     }
 
@@ -259,8 +313,9 @@ const Products = () => {
   };
 
   const handleBatchImport = () => {
-    if (importPreview.length === 0) return;
-    batchImportProducts(importPreview);
+    const validProducts = importPreview.filter(item => item.isValid);
+    if (validProducts.length === 0) return;
+    batchImportProducts(validProducts);
     setImportText('');
     setImportPreview([]);
     setActiveTab('list');
@@ -582,14 +637,28 @@ const Products = () => {
                               <th className="text-center py-2 px-3 text-xs font-medium text-slate-400">库存</th>
                               <th className="text-center py-2 px-3 text-xs font-medium text-slate-400">售价</th>
                               <th className="text-center py-2 px-3 text-xs font-medium text-slate-400">类型</th>
+                              <th className="text-center py-2 px-3 text-xs font-medium text-slate-400">状态</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-700/30">
                             {importPreview.map((item, idx) => (
-                              <tr key={idx} className="hover:bg-slate-700/20">
+                              <tr key={idx} className={cn(
+                                'transition-colors',
+                                item.isValid ? 'hover:bg-slate-700/20' : 'bg-danger/10 hover:bg-danger/15'
+                              )}>
                                 <td className="py-2 px-3 text-slate-200">{item.name}</td>
-                                <td className="py-2 px-3 text-center text-slate-300">{item.stock}</td>
-                                <td className="py-2 px-3 text-center text-success">¥{item.price}</td>
+                                <td className={cn(
+                                  'py-2 px-3 text-center',
+                                  item.errors.includes('库存格式错误') ? 'text-danger' : 'text-slate-300'
+                                )}>
+                                  {item.errors.includes('库存格式错误') ? '-' : item.stock}
+                                </td>
+                                <td className={cn(
+                                  'py-2 px-3 text-center',
+                                  item.errors.includes('价格格式错误') ? 'text-danger' : 'text-success'
+                                )}>
+                                  {item.errors.includes('价格格式错误') ? '-' : `¥${item.price}`}
+                                </td>
                                 <td className="py-2 px-3 text-center">
                                   <span className={cn(
                                     'text-[10px] px-1.5 py-0.5 rounded',
@@ -598,6 +667,20 @@ const Products = () => {
                                     {productTypeLabels[item.type]}
                                   </span>
                                 </td>
+                                <td className="py-2 px-3 text-center">
+                                  {item.isValid ? (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-success/15 text-success border border-success/30">
+                                      有效
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="text-[10px] px-1.5 py-0.5 rounded bg-danger/15 text-danger border border-danger/30 cursor-help"
+                                      title={item.errors.join('；')}
+                                    >
+                                      {item.errors[0] || '无效'}
+                                    </span>
+                                  )}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -605,9 +688,19 @@ const Products = () => {
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">
-                    共解析到 <span className="text-primary font-medium">{importPreview.length}</span> 条商品
-                  </p>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-slate-500">
+                      共解析到 <span className="text-primary font-medium">{importPreview.length}</span> 条商品
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      有效商品数：<span className="text-success font-medium">{importPreview.filter(i => i.isValid).length}</span>
+                      {importPreview.filter(i => !i.isValid).length > 0 && (
+                        <span className="ml-2 text-danger">
+                          异常 <span className="font-medium">{importPreview.filter(i => !i.isValid).length}</span> 条
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -633,10 +726,10 @@ const Products = () => {
                   </button>
                   <button
                     onClick={handleBatchImport}
-                    disabled={importPreview.length === 0}
+                    disabled={importPreview.filter(i => i.isValid).length === 0}
                     className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    确认导入 {importPreview.length > 0 && `(${importPreview.length}件)`}
+                    确认导入 {importPreview.filter(i => i.isValid).length > 0 && `(${importPreview.filter(i => i.isValid).length}件有效)`}
                   </button>
                 </div>
               </div>

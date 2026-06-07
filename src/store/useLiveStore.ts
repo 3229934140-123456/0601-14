@@ -10,6 +10,10 @@ import type {
   ReviewPoint,
   ProductType,
   Priority,
+  PeakData,
+  TeamMember,
+  OperationLog,
+  OperationType,
 } from '@/types';
 import { storage } from '@/utils/storage';
 import {
@@ -33,10 +37,15 @@ interface LiveState {
   danmaku: Danmaku[];
   abnormalEvents: AbnormalEvent[];
   reviewPoints: ReviewPoint[];
+  peakData: PeakData[];
+  teamMembers: TeamMember[];
+  operationLogs: OperationLog[];
 
   initStore: () => void;
   saveSessionsToStorage: () => void;
   saveTemplatesToStorage: () => void;
+
+  addOperationLog: (type: OperationType, description: string, targetId?: string, targetName?: string, extra?: Record<string, any>) => void;
 
   createSession: (data: {
     title: string;
@@ -105,6 +114,9 @@ export const useLiveStore = create<LiveState>((set, get) => ({
   danmaku: [],
   abnormalEvents: [],
   reviewPoints: [],
+  peakData: [],
+  teamMembers: [],
+  operationLogs: [],
 
   initStore: () => {
     const savedSessions = storage.get<LiveSession[]>('sessions', []);
@@ -138,6 +150,9 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       danmaku: currentSession?.danmaku || [],
       abnormalEvents: currentSession?.abnormalEvents || [],
       reviewPoints: currentSession?.reviewPoints || [],
+      peakData: currentSession?.peakData || [],
+      teamMembers: currentSession?.teamMembers || [],
+      operationLogs: currentSession?.operationLogs || [],
     });
   },
 
@@ -149,6 +164,34 @@ export const useLiveStore = create<LiveState>((set, get) => ({
   saveTemplatesToStorage: () => {
     const { templates } = get();
     storage.set('templates', templates);
+  },
+
+  addOperationLog: (type, description, targetId, targetName, extra) => {
+    const { operationLogs, currentSession, currentSessionId, sessions } = get();
+    const operator = currentSession?.owner || '系统';
+    const newLog: OperationLog = {
+      id: generateId(),
+      type,
+      operator,
+      targetId,
+      targetName,
+      description,
+      timestamp: new Date().toISOString(),
+      extra,
+    };
+    const updatedLogs = [...operationLogs, newLog];
+
+    const updatedSessions = sessions.map(s =>
+      s.id === currentSessionId ? { ...s, operationLogs: updatedLogs, updatedAt: new Date().toISOString() } : s
+    );
+    const currentSessionUpdated = updatedSessions.find(s => s.id === currentSessionId) || null;
+
+    set({
+      operationLogs: updatedLogs,
+      sessions: updatedSessions,
+      currentSession: currentSessionUpdated,
+    });
+    storage.set('sessions', updatedSessions);
   },
 
   createSession: (data) => {
@@ -171,6 +214,9 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       danmaku: newSession.danmaku,
       abnormalEvents: newSession.abnormalEvents,
       reviewPoints: newSession.reviewPoints,
+      peakData: newSession.peakData,
+      teamMembers: newSession.teamMembers,
+      operationLogs: newSession.operationLogs,
     });
     storage.set('sessions', updatedSessions);
     storage.set('currentSessionId', newSession.id);
@@ -189,6 +235,9 @@ export const useLiveStore = create<LiveState>((set, get) => ({
         danmaku: session.danmaku,
         abnormalEvents: session.abnormalEvents,
         reviewPoints: session.reviewPoints,
+        peakData: session.peakData,
+        teamMembers: session.teamMembers,
+        operationLogs: session.operationLogs,
       });
       storage.set('currentSessionId', sessionId);
     }
@@ -228,6 +277,9 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       danmaku: newCurrent?.danmaku || [],
       abnormalEvents: newCurrent?.abnormalEvents || [],
       reviewPoints: newCurrent?.reviewPoints || [],
+      peakData: newCurrent?.peakData || [],
+      teamMembers: newCurrent?.teamMembers || [],
+      operationLogs: newCurrent?.operationLogs || [],
     });
     storage.set('sessions', updatedSessions);
     if (newCurrentId) {
@@ -257,6 +309,13 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'add_product',
+      `添加商品「${newProduct.name}」`,
+      newProduct.id,
+      newProduct.name
+    );
   },
 
   updateProduct: (id, updates) => {
@@ -314,6 +373,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
 
   markProductOnShelf: (id) => {
     const { products, currentSessionId, sessions } = get();
+    const targetProduct = products.find(p => p.id === id);
     const updatedProducts = products.map(p =>
       p.id === id ? { ...p, onShelfTime: new Date().toISOString() } : p
     );
@@ -329,6 +389,15 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    if (targetProduct) {
+      get().addOperationLog(
+        'mark_on_shelf',
+        `标记商品「${targetProduct.name}」已上架`,
+        targetProduct.id,
+        targetProduct.name
+      );
+    }
   },
 
   batchImportProducts: (productsList) => {
@@ -352,6 +421,14 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'import_products',
+      `批量导入${newProducts.length}个商品`,
+      undefined,
+      undefined,
+      { count: newProducts.length }
+    );
   },
 
   generateStockReplenishTasks: () => {
@@ -359,21 +436,27 @@ export const useLiveStore = create<LiveState>((set, get) => ({
     const threshold = currentSession?.stockWarningThreshold || 100;
     const lowStockProducts = products.filter(p => p.stock < threshold);
 
-    const newTasks: Task[] = lowStockProducts.map(p => ({
+    const pendingReplenishProductIds = tasks
+      .filter(t => !t.isCompleted && t.relatedProductId)
+      .map(t => t.relatedProductId);
+
+    const productsToReplenish = lowStockProducts.filter(
+      p => !pendingReplenishProductIds.includes(p.id)
+    );
+
+    if (productsToReplenish.length === 0) return;
+
+    const newTasks: Task[] = productsToReplenish.map(p => ({
       id: generateId(),
       title: `补货：${p.name}`,
       description: `当前库存 ${p.stock} 件，低于阈值 ${threshold}，请尽快补货`,
       priority: p.stock < threshold / 2 ? 'high' : 'medium',
       isCompleted: false,
       category: '直播后',
+      relatedProductId: p.id,
+      relatedProductName: p.name,
+      relatedProductStock: p.stock,
     }));
-
-    get().sessions.map(s => {
-      if (s.id === get().currentSessionId) {
-        return { ...s, tasks: [...tasks, ...newTasks] };
-      }
-      return s;
-    });
 
     const { currentSessionId, sessions } = get();
     const updatedTasks = [...tasks, ...newTasks];
@@ -388,6 +471,14 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession: currentSessionUpdated,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'generate_replenish_task',
+      `生成${newTasks.length}条补货待办任务`,
+      undefined,
+      undefined,
+      { count: newTasks.length }
+    );
   },
 
   updateStockThreshold: (threshold) => {
@@ -475,6 +566,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
 
   completeScriptNode: (id) => {
     const { scriptNodes, currentSessionId, sessions } = get();
+    const targetNode = scriptNodes.find(n => n.id === id);
     const updatedNodes = scriptNodes.map(n =>
       n.id === id ? { ...n, isCompleted: !n.isCompleted } : n
     );
@@ -490,10 +582,21 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    if (targetNode) {
+      const newCompleted = !targetNode.isCompleted;
+      get().addOperationLog(
+        'complete_script_node',
+        newCompleted ? `标记脚本节点「${targetNode.title}」为已完成` : `取消脚本节点「${targetNode.title}」的完成状态`,
+        targetNode.id,
+        targetNode.title
+      );
+    }
   },
 
   skipScriptNode: (id) => {
     const { scriptNodes, currentSessionId, sessions } = get();
+    const targetNode = scriptNodes.find(n => n.id === id);
     const updatedNodes = scriptNodes.map(n =>
       n.id === id ? { ...n, isSkipped: !n.isSkipped, isCompleted: !n.isSkipped } : n
     );
@@ -509,6 +612,16 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    if (targetNode) {
+      const newSkipped = !targetNode.isSkipped;
+      get().addOperationLog(
+        'skip_script_node',
+        newSkipped ? `跳过脚本节点「${targetNode.title}」` : `取消跳过脚本节点「${targetNode.title}」`,
+        targetNode.id,
+        targetNode.title
+      );
+    }
   },
 
   delayScriptNode: (id, minutes) => {
@@ -538,6 +651,14 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'delay_script_node',
+      `将脚本节点「${targetNode.title}」延后${minutes}分钟`,
+      targetNode.id,
+      targetNode.title,
+      { delayMinutes: minutes }
+    );
   },
 
   addTask: (task) => {
@@ -556,6 +677,13 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'create_task',
+      `创建待办任务「${newTask.title}」`,
+      newTask.id,
+      newTask.title
+    );
   },
 
   updateTask: (id, updates) => {
@@ -594,6 +722,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
 
   toggleTask: (id) => {
     const { tasks, currentSessionId, sessions } = get();
+    const targetTask = tasks.find(t => t.id === id);
     const updatedTasks = tasks.map(t =>
       t.id === id ? { ...t, isCompleted: !t.isCompleted } : t
     );
@@ -609,6 +738,16 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    if (targetTask) {
+      const newCompleted = !targetTask.isCompleted;
+      get().addOperationLog(
+        'complete_task',
+        newCompleted ? `完成待办任务「${targetTask.title}」` : `取消完成待办任务「${targetTask.title}」`,
+        targetTask.id,
+        targetTask.title
+      );
+    }
   },
 
   addDanmaku: (item) => {
@@ -707,6 +846,14 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'import_danmaku',
+      `批量导入${newDanmaku.length}条弹幕`,
+      undefined,
+      undefined,
+      { count: newDanmaku.length }
+    );
   },
 
   convertDanmakuToTask: (danmakuId, priority) => {
@@ -744,6 +891,14 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'create_task',
+      `将弹幕转换为待办任务「${newTask.title}」`,
+      newTask.id,
+      newTask.title,
+      { sourceDanmakuId: item.id, sourceDanmakuContent: item.content }
+    );
   },
 
   markDanmakuFollowUp: (danmakuId) => {
@@ -816,6 +971,13 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       currentSession,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'add_review_point',
+      `添加复盘要点「${newPoint.content.slice(0, 20)}」`,
+      newPoint.id,
+      newPoint.content
+    );
   },
 
   deleteReviewPoint: (id) => {
@@ -890,22 +1052,27 @@ export const useLiveStore = create<LiveState>((set, get) => ({
   },
 
   startLive: () => {
-    const { currentSessionId, sessions } = get();
+    const { currentSessionId, sessions, currentSession } = get();
     const now = Date.now();
     const updatedSessions = sessions.map(s =>
       s.id === currentSessionId
         ? { ...s, status: 'ongoing' as const, startTime: new Date().toISOString(), updatedAt: new Date().toISOString() }
         : s
     );
-    const currentSession = updatedSessions.find(s => s.id === currentSessionId) || null;
+    const currentSessionUpdated = updatedSessions.find(s => s.id === currentSessionId) || null;
 
     set({
       isLiveOngoing: true,
       liveStartTime: now,
       sessions: updatedSessions,
-      currentSession,
+      currentSession: currentSessionUpdated,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'start_live',
+      '开始直播'
+    );
   },
 
   endLive: () => {
@@ -915,13 +1082,18 @@ export const useLiveStore = create<LiveState>((set, get) => ({
         ? { ...s, status: 'completed' as const, endTime: new Date().toISOString(), updatedAt: new Date().toISOString() }
         : s
     );
-    const currentSession = updatedSessions.find(s => s.id === currentSessionId) || null;
+    const currentSessionUpdated = updatedSessions.find(s => s.id === currentSessionId) || null;
 
     set({
       isLiveOngoing: false,
       sessions: updatedSessions,
-      currentSession,
+      currentSession: currentSessionUpdated,
     });
     storage.set('sessions', updatedSessions);
+
+    get().addOperationLog(
+      'end_live',
+      '结束直播'
+    );
   },
 }));
