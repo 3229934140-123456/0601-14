@@ -1,0 +1,338 @@
+import type { Product, ScriptNode, Task, Danmaku, AbnormalEvent, LiveSession, Template, HighFrequencyQuestion, PeakData, ReviewPoint } from '@/types';
+import { generateId } from './format';
+
+export const mockProducts: Product[] = [
+  {
+    id: 'prod-1',
+    name: '高端保湿面霜 50g',
+    image: '',
+    stock: 128,
+    price: 199,
+    originalPrice: 299,
+    sortOrder: 1,
+    type: 'main',
+    description: '深层保湿，持久滋润，适合各种肤质',
+  },
+  {
+    id: 'prod-2',
+    name: '精华液套装',
+    image: '',
+    stock: 56,
+    price: 359,
+    originalPrice: 499,
+    sortOrder: 2,
+    type: 'main',
+    description: '烟酰胺+玻尿酸双效精华，提亮肤色',
+  },
+  {
+    id: 'prod-3',
+    name: '氨基酸洁面乳',
+    image: '',
+    stock: 200,
+    price: 89,
+    originalPrice: 129,
+    sortOrder: 3,
+    type: 'secondary',
+    description: '温和清洁，不紧绷',
+  },
+  {
+    id: 'prod-4',
+    name: '补水喷雾',
+    image: '',
+    stock: 350,
+    price: 49,
+    originalPrice: 79,
+    sortOrder: 4,
+    type: 'secondary',
+    description: '随时补水，定妆舒缓',
+  },
+  {
+    id: 'prod-5',
+    name: '面膜礼盒装',
+    image: '',
+    stock: 89,
+    price: 159,
+    originalPrice: 239,
+    sortOrder: 5,
+    type: 'bonus',
+    description: '20片装，补水美白双效',
+  },
+  {
+    id: 'prod-6',
+    name: '护手霜套装',
+    image: '',
+    stock: 180,
+    price: 69,
+    originalPrice: 99,
+    sortOrder: 6,
+    type: 'bonus',
+    description: '3支装，滋润不油腻',
+  },
+];
+
+export const mockScriptNodes: ScriptNode[] = [
+  {
+    id: 'node-1',
+    title: '开场欢迎',
+    content: '欢迎宝宝们来到直播间！今天给大家带来了超划算的护肤好物，记得点关注不迷路哦~',
+    type: 'opening',
+    timeOffset: 0,
+    isCompleted: false,
+  },
+  {
+    id: 'node-2',
+    title: '第一款主推：保湿面霜',
+    content: '第一款给大家带来的是我们的镇店之宝——高端保湿面霜。这款面霜...',
+    type: 'product',
+    timeOffset: 300,
+    isCompleted: false,
+    relatedProductId: 'prod-1',
+  },
+  {
+    id: 'node-3',
+    title: '互动抽奖',
+    content: '现在开始我们的第一轮抽奖！评论区扣"想要"，5分钟后截屏抽3位宝宝送小样~',
+    type: 'interaction',
+    timeOffset: 900,
+    isCompleted: false,
+  },
+  {
+    id: 'node-4',
+    title: '第二款主推：精华液',
+    content: '接下来是我们的第二款主推——精华液套装，烟酰胺加玻尿酸双效配方...',
+    type: 'product',
+    timeOffset: 1200,
+    isCompleted: false,
+    relatedProductId: 'prod-2',
+  },
+  {
+    id: 'node-5',
+    title: '限时特惠',
+    content: '注意注意！现在下单前100名宝宝额外再减30元！手慢无！',
+    type: 'promotion',
+    timeOffset: 1800,
+    isCompleted: false,
+  },
+  {
+    id: 'node-6',
+    title: '福利款秒杀',
+    content: '现在上福利款！面膜礼盒，平时239，今天直播间只要159！三二一，上链接！',
+    type: 'product',
+    timeOffset: 2100,
+    isCompleted: false,
+    relatedProductId: 'prod-5',
+  },
+  {
+    id: 'node-7',
+    title: '收尾感谢',
+    content: '感谢所有宝宝的支持！记得关注店铺，下次直播我们再见~ 爱你们！',
+    type: 'closing',
+    timeOffset: 2700,
+    isCompleted: false,
+  },
+];
+
+export const mockTasks: Task[] = [
+  {
+    id: 'task-1',
+    title: '检查所有商品库存',
+    description: '确认6款商品库存充足',
+    priority: 'high',
+    isCompleted: true,
+    category: '开播前',
+  },
+  {
+    id: 'task-2',
+    title: '设置直播封面',
+    description: '上传并审核封面图',
+    priority: 'high',
+    isCompleted: false,
+    category: '开播前',
+  },
+  {
+    id: 'task-3',
+    title: '确认优惠力度',
+    description: '与运营确认最终折扣',
+    priority: 'medium',
+    isCompleted: false,
+    category: '开播前',
+  },
+  {
+    id: 'task-4',
+    title: '测试直播设备',
+    description: '检查摄像头、麦克风、灯光',
+    priority: 'high',
+    isCompleted: true,
+    category: '开播前',
+  },
+  {
+    id: 'task-5',
+    title: '准备样品',
+    description: '将样品按讲解顺序摆放',
+    priority: 'medium',
+    isCompleted: false,
+    category: '开播前',
+  },
+  {
+    id: 'task-6',
+    title: '同步客服话术',
+    description: '让客服熟悉今天的活动规则',
+    priority: 'low',
+    isCompleted: false,
+    category: '开播前',
+  },
+];
+
+export const mockDanmaku: Danmaku[] = [
+  { id: 'd1', content: '这个面霜好用吗', user: '小美', timestamp: '2024-01-15T19:05:00', sentiment: 'neutral', category: '产品咨询' },
+  { id: 'd2', content: '多少钱啊', user: '爱购物的猫', timestamp: '2024-01-15T19:05:30', sentiment: 'neutral', category: '价格咨询' },
+  { id: 'd3', content: '已下单！', user: '快乐小猪', timestamp: '2024-01-15T19:06:00', sentiment: 'positive', category: '购买反馈' },
+  { id: 'd4', content: '敏感肌能用吗', user: '痘痘肌少女', timestamp: '2024-01-15T19:06:20', sentiment: 'neutral', category: '产品咨询' },
+  { id: 'd5', content: '主播声音好好听', user: '路过的风', timestamp: '2024-01-15T19:07:00', sentiment: 'positive', category: '互动' },
+  { id: 'd6', content: '有优惠吗', user: '省钱达人', timestamp: '2024-01-15T19:07:30', sentiment: 'neutral', category: '价格咨询' },
+  { id: 'd7', content: '发货快吗', user: '急着用', timestamp: '2024-01-15T19:08:00', sentiment: 'neutral', category: '物流咨询' },
+  { id: 'd8', content: '回购第三次了！', user: '老粉一枚', timestamp: '2024-01-15T19:08:30', sentiment: 'positive', category: '购买反馈' },
+  { id: 'd9', content: '这个面霜好用吗', user: '新人小白', timestamp: '2024-01-15T19:09:00', sentiment: 'neutral', category: '产品咨询' },
+  { id: 'd10', content: '太贵了吧', user: '学生党', timestamp: '2024-01-15T19:09:30', sentiment: 'negative', category: '价格咨询' },
+  { id: 'd11', content: '有小样吗', user: '试用党', timestamp: '2024-01-15T19:10:00', sentiment: 'neutral', category: '产品咨询' },
+  { id: 'd12', content: '主播讲得好详细', user: '认真听讲', timestamp: '2024-01-15T19:10:30', sentiment: 'positive', category: '互动' },
+  { id: 'd13', content: '多少钱啊', user: '新来的', timestamp: '2024-01-15T19:11:00', sentiment: 'neutral', category: '价格咨询' },
+  { id: 'd14', content: '这个面霜好用吗', user: '纠结中', timestamp: '2024-01-15T19:11:30', sentiment: 'neutral', category: '产品咨询' },
+  { id: 'd15', content: '冲了冲了', user: '剁手达人', timestamp: '2024-01-15T19:12:00', sentiment: 'positive', category: '购买反馈' },
+];
+
+export const mockAbnormalEvents: AbnormalEvent[] = [
+  {
+    id: 'ab-1',
+    type: 'technical',
+    description: '直播画面卡顿约30秒',
+    timestamp: '2024-01-15T19:15:00',
+    duration: 30,
+  },
+  {
+    id: 'ab-2',
+    type: 'content',
+    description: '提到了"最"字，疑似违规表述',
+    timestamp: '2024-01-15T19:45:00',
+    duration: 0,
+  },
+];
+
+export const mockLiveSessions: LiveSession[] = [
+  {
+    id: 'session-1',
+    title: '新春护肤好物专场',
+    startTime: '2024-01-15T19:00:00',
+    endTime: '2024-01-15T21:30:00',
+    status: 'completed',
+    viewerCount: 12580,
+    transactionAmount: 89600,
+    interactionRate: 0.15,
+    createdAt: '2024-01-15T18:00:00',
+    updatedAt: '2024-01-15T21:30:00',
+  },
+  {
+    id: 'session-2',
+    title: '年货节美妆大促',
+    startTime: '2024-01-10T20:00:00',
+    endTime: '2024-01-10T22:45:00',
+    status: 'completed',
+    viewerCount: 18900,
+    transactionAmount: 156800,
+    interactionRate: 0.22,
+    createdAt: '2024-01-10T19:00:00',
+    updatedAt: '2024-01-10T22:45:00',
+  },
+  {
+    id: 'session-3',
+    title: '今日护肤小课堂',
+    startTime: '2024-01-08T19:30:00',
+    endTime: '2024-01-08T21:00:00',
+    status: 'completed',
+    viewerCount: 8650,
+    transactionAmount: 45200,
+    interactionRate: 0.18,
+    createdAt: '2024-01-08T18:30:00',
+    updatedAt: '2024-01-08T21:00:00',
+  },
+];
+
+export const mockTemplates: Template[] = [
+  {
+    id: 'tmpl-1',
+    name: '日常直播标准版',
+    createdAt: '2024-01-05T10:00:00',
+    products: mockProducts.slice(0, 4),
+    scriptNodes: mockScriptNodes,
+    tasks: mockTasks,
+  },
+  {
+    id: 'tmpl-2',
+    name: '大促活动版',
+    createdAt: '2024-01-01T15:30:00',
+    products: mockProducts,
+    scriptNodes: [...mockScriptNodes, {
+      id: 'node-extra',
+      title: '终极秒杀',
+      content: '最后一波！全场买一送一，仅限最后10分钟！',
+      type: 'promotion',
+      timeOffset: 2400,
+      isCompleted: false,
+    }],
+    tasks: [...mockTasks, {
+      id: 'task-extra',
+      title: '确认活动库存',
+      description: '确保大促商品库存充足',
+      priority: 'high',
+      isCompleted: false,
+      category: '开播前',
+    }],
+  },
+];
+
+export const mockHighFrequencyQuestions: HighFrequencyQuestion[] = [
+  { question: '这个面霜好用吗', count: 15, category: '产品咨询' },
+  { question: '多少钱啊', count: 12, category: '价格咨询' },
+  { question: '敏感肌能用吗', count: 8, category: '产品咨询' },
+  { question: '有优惠吗', count: 7, category: '价格咨询' },
+  { question: '发货快吗', count: 5, category: '物流咨询' },
+  { question: '有小样吗', count: 4, category: '产品咨询' },
+];
+
+export const mockPeakData: PeakData[] = [
+  { time: '19:05', amount: 5800, productId: 'prod-1', productName: '高端保湿面霜' },
+  { time: '19:15', amount: 3200, productId: 'prod-2', productName: '精华液套装' },
+  { time: '19:30', amount: 12500, productId: 'prod-5', productName: '面膜礼盒装' },
+  { time: '19:45', amount: 8900, productId: 'prod-1', productName: '高端保湿面霜' },
+  { time: '20:00', amount: 15800, productId: 'prod-2', productName: '精华液套装' },
+  { time: '20:15', amount: 6700, productId: 'prod-3', productName: '氨基酸洁面乳' },
+  { time: '20:30', amount: 18200, productId: 'prod-5', productName: '面膜礼盒装' },
+  { time: '20:45', amount: 9600, productId: 'prod-4', productName: '补水喷雾' },
+  { time: '21:00', amount: 7300, productId: 'prod-6', productName: '护手霜套装' },
+  { time: '21:15', amount: 4200, productId: 'prod-3', productName: '氨基酸洁面乳' },
+];
+
+export const mockReviewPoints: ReviewPoint[] = [
+  { id: 'rp1', content: '开场节奏把控较好，观众留存率高', type: 'good' },
+  { id: 'rp2', content: '第一款产品讲解时间过长，导致观众流失', type: 'bad' },
+  { id: 'rp3', content: '互动环节参与度高，建议增加互动频次', type: 'good' },
+  { id: 'rp4', content: '限时优惠效果显著，成交峰值明显', type: 'good' },
+  { id: 'rp5', content: '中途画面卡顿，需检查网络和设备', type: 'bad' },
+  { id: 'rp6', content: '福利款秒杀转化好，下次可增加库存', type: 'improvement' },
+  { id: 'rp7', content: '建议优化产品讲解顺序，爆款后置', type: 'improvement' },
+];
+
+export const generateMockLiveSession = (): LiveSession => {
+  const now = new Date();
+  return {
+    id: generateId(),
+    title: '新直播场次',
+    startTime: now.toISOString(),
+    status: 'draft',
+    viewerCount: 0,
+    transactionAmount: 0,
+    interactionRate: 0,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+};
